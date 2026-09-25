@@ -1,0 +1,21 @@
+# 运行时数据 / 机器相关文件（含账号凭据，勿提交）
+data/
+checkin.log
+checkin.log.*
+node-path.txt
+workbuddy-accounts/
+trae-token.cache.json
+qoder-token.cache.json
+
+# 临时调查脚本
+_test_*.js
+_*.tmp.js
+
+# 构建产物 / 打包缓存
+.trae-html-share-packages/
+
+# 系统与编辑器杂物
+Thumbs.db
+Desktop.ini
+.vscode/
+*.swp

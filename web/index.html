@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI 签到管理台</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>AI 签到管理台</h1>
+    <div class="header-actions">
+      <span id="run-state" class="run-state idle">空闲</span>
+      <button id="btn-run-all" class="primary">全部签到</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- 左侧：账号登录态 + 详细登录信息 -->
+    <section class="col-left">
+      <section id="last-run" class="panel">
+        <h2>上次运行</h2>
+        <div id="last-run-body" class="muted">暂无记录</div>
+      </section>
+
+      <section id="tools" class="tools"></section>
+    </section>
+
+    <!-- 右侧：运行日志 -->
+    <aside class="col-right">
+      <section class="panel log-panel">
+        <div class="panel-head">
+          <h2>运行日志</h2>
+          <label class="auto-refresh">
+            <input type="checkbox" id="log-auto" checked /> 运行中自动刷新
+          </label>
+          <button id="btn-log-refresh">刷新</button>
+        </div>
+        <pre id="log-view" class="log-view"></pre>
+      </section>
+    </aside>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
