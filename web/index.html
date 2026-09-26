@@ -16,23 +16,25 @@
   </header>
 
   <main class="layout">
-    <!-- 左侧：账号登录态 + 详细登录信息 -->
+    <!-- 左侧：概览 + 渠道卡片（点击下钻） -->
     <section class="col-left">
-      <section id="credits" class="panel">
-        <div class="panel-head">
-          <h2>当前积分</h2>
-          <span id="credits-total" class="credits-total muted">—</span>
-          <button id="btn-credits-refresh" class="small">刷新</button>
+      <section class="panel overview">
+        <div class="overview-item">
+          <div class="overview-label">全部渠道合计</div>
+          <div class="overview-value" id="credits-total">—</div>
+          <div class="overview-sub" id="credits-at">加载中…</div>
         </div>
-        <div id="credits-body" class="muted">加载中…</div>
+        <div class="overview-item">
+          <div class="overview-label">上次运行</div>
+          <div class="overview-value" id="last-run-summary">暂无记录</div>
+          <div class="overview-sub" id="last-run-at"></div>
+        </div>
+        <div class="overview-actions">
+          <button id="btn-credits-refresh" class="small">刷新积分</button>
+        </div>
       </section>
 
-      <section id="last-run" class="panel">
-        <h2>上次运行</h2>
-        <div id="last-run-body" class="muted">暂无记录</div>
-      </section>
-
-      <section id="tools" class="tools"></section>
+      <div id="view-root"></div>
     </section>
 
     <!-- 右侧：运行日志 -->
