@@ -150,6 +150,66 @@ async function loadLog() {
   } catch { /* 忽略 */ }
 }
 
+// ---- 当前积分 -----------------------------------------------------------------
+
+/** 积分数值展示：保留 2 位小数 + 千分位；无值显示「—」 */
+function fmtCredits(n) {
+  if (n === null || n === undefined || !Number.isFinite(Number(n))) return '—';
+  return Number(n).toLocaleString('zh-CN', { maximumFractionDigits: 2 });
+}
+
+function renderCredits(data) {
+  const body = $('#credits-body');
+  const totalEl = $('#credits-total');
+  const tools = (data && data.tools) || [];
+  if (!tools.some((t) => t.accounts.length)) {
+    totalEl.textContent = '—';
+    body.textContent = '暂无账号';
+    return;
+  }
+  const at = fmtTime(data.fetchedAt);
+  totalEl.innerHTML = `全部渠道合计 <b>${fmtCredits(data.total)}</b> credits${at ? ` · 更新于 ${esc(at.slice(11))}` : ''}`;
+  body.innerHTML = tools
+    .map((t) => {
+      const rows = t.accounts.length
+        ? t.accounts
+            .map(
+              (a) => `
+          <div class="credit-acc">
+            <span class="credit-acc-name">${esc(a.name)}</span>
+            ${a.ok ? '' : `<span class="credit-err">${esc(a.msg)}</span>`}
+            <span class="credit-acc-val">${fmtCredits(a.credits)}</span>
+          </div>`
+            )
+            .join('')
+        : '<div class="credit-acc"><span class="credit-acc-name muted">暂无账号</span></div>';
+      return `
+        <div class="credit-tool">
+          <div class="credit-tool-head">
+            <span class="credit-tool-name">${esc(t.name)}</span>
+            <span class="credit-tool-val">${t.accounts.length ? fmtCredits(t.total) : '—'}</span>
+          </div>
+          ${rows}
+        </div>`;
+    })
+    .join('');
+}
+
+async function loadCredits() {
+  const btn = $('#btn-credits-refresh');
+  btn.disabled = true;
+  btn.textContent = '刷新中…';
+  try {
+    renderCredits(await api('/api/credits'));
+  } catch (e) {
+    $('#credits-total').textContent = '—';
+    $('#credits-body').textContent = '积分加载失败: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '刷新';
+  }
+}
+
 // ---- 操作 ---------------------------------------------------------------------
 
 function setRunState(running) {
@@ -172,6 +232,7 @@ function startPolling() {
         setRunState(false);
         await loadAll();
         loadLog();
+        loadCredits(); // 签到会改变余额
         toast('签到已完成');
       }
     } catch { /* 轮询失败忽略，下轮重试 */ }
@@ -236,6 +297,8 @@ async function removeAccount(tool, name) {
 
 $('#btn-run-all').addEventListener('click', () => triggerRun({}, '全部签到'));
 $('#btn-log-refresh').addEventListener('click', loadLog);
+$('#btn-credits-refresh').addEventListener('click', loadCredits);
 
 loadAll();
 loadLog();
+loadCredits();

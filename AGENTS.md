@@ -14,12 +14,12 @@
 | 文件 / 目录 | 角色 | 改动注意 |
 |------|------|---------|
 | `checkin.js` | CLI 入口（薄壳）：参数解析 → `lib/core/runner` | 加工具**不用改这里** |
-| `server.js` | Web 管理台入口（仅绑 127.0.0.1） | API 与静态页面路由 |
+| `server.js` | Web 管理台入口（仅绑 127.0.0.1） | API 与静态页面路由；`/api/credits` 只回 name/source/credits/msg，无凭据 |
 | `lib/core/http.js` | 请求封装（postJson / jsonRequest） | Qoder 的"POST 无 body"语义不得合并进 postJson |
 | `lib/core/log.js` | 统一日志（console + 追加 `checkin.log`） | **独家**写日志；bat 不再重定向 |
 | `lib/core/dpapi.js` | DPAPI protect/unprotect（借道 PowerShell） | 只传 base64，不回显明文 |
 | `lib/core/store.js` | `data/` 管理 + DPAPI 密封信封 + 旧数据迁移 | 迁移必须幂等、失败只告警 |
-| `lib/core/runner.js` | 工具注册表（自动发现 `lib/tools/*.js`）+ 编排 + publicView 白名单 | 契约校验 fail fast |
+| `lib/core/runner.js` | 工具注册表（自动发现 `lib/tools/*.js`）+ 编排（签到 / 积分查询）+ publicView 白名单 | 契约校验 fail fast |
 | `lib/tools/<tool>.js` | 每工具一个模块（统一契约） | **加工具只加这里一个文件** |
 | `web/` | 管理台前端（原生 HTML/JS/CSS） | 展示数据只能来自 API 白名单字段 |
 | `README.md` | **接口基线文档**："签到机制"一节是改版后重新抓包的对照基线 | 接入新工具必须补一节 |
@@ -32,8 +32,9 @@
 
 ## 硬性契约（改 `lib/tools/*` 或 `lib/core/*` 必须遵守）
 
-- 工具模块统一契约：`key` / `name` / `collectAccounts` / `importAccount` / `removeAccount` / `checkinAccount`（可选 `noAccountMsg`），runner 自动发现，缺导出启动即报错。
+- 工具模块统一契约：`key` / `name` / `collectAccounts` / `importAccount` / `removeAccount` / `checkinAccount`（可选 `noAccountMsg`、`getCredits`），runner 自动发现，缺导出启动即报错。
 - `checkinAccount(handle)` **同步返回 `{ok: boolean, msg: string}` 语义，绝不抛异常**——所有错误收敛为 `{ok:false, msg}`（runner 亦兜底 try/catch）。
+- `getCredits(acc)`（可选）**只读**查询当前可用积分余额，返回 `{ok, credits, msg}`，同样绝不抛异常、绝不触发领取；口径统一为"当前可用余额"，单位 credits。积分查询**不自动续期**（token 失效返回 `{ok:false, msg:'token 已失效…'}`），续期由签到流程负责。`runner.collectCredits()` 全串行编排，单账号失败只标红该行；未实现该方法的工具标为"该工具未提供积分查询"。
 - `handle` 为不透明凭据对象：只传回 `checkinAccount`，**永不序列化**；CLI/前端展示一律走 `runner.publicView` 字段白名单（name/uid 掩码/source/tokenExpireDays/refreshTokenExpireDays/到期时间/快照导入时间/账号标识 label）。白名单只放非凭据信息，**token 与 refreshToken 本体永不入白名单**。
 - **先查状态再领取**（幂等）：状态接口报已签直接返回"今日已签到"，不得再发领取请求。领取接口普遍有频控。
 - 请求 body / headers **与真实客户端抓包逐字段一致**，不自行增删字段（TraeWork 领取多带字段即 9074 限频；Qoder 领取 POST 无 body 无 Content-Type）。

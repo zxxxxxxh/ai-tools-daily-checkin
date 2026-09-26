@@ -33,6 +33,7 @@ module.exports = {
   async importAccount(name), // 客户端当前登录 → 快照
   async removeAccount(name),
   async checkinAccount(handle), // 单账号签到 → {ok, msg}；内部处理续期落盘；绝不抛异常
+  async getCredits(acc),   // 当前可用积分余额（只读查询）→ {ok, credits, msg}；可选，绝不触发领取
 };
 ```
 
@@ -71,12 +72,21 @@ module.exports = {
   `node checkin.js --save workbuddy <名称>` 导入快照即可；之后客户端切回常用账号，
   快照账号完全由脚本每日签到 + 续期维护。签到时按 uid 去重（客户端登录态优先，
   且会把客户端的新 token 同步回对应快照）
+- 当前积分：`POST /billing/meter/get-user-resource-summary`（**无 `/v2` 前缀**，
+  带 v2 会 404），取 `data.Packages[].CycleRemainCapacity`（本周期剩余额度）求和，单位 credits
 
 ### TraeWork（TRAE SOLO CN）
 
 - 域名 `https://api.trae.cn`
 - 查状态：`POST /trae/api/v2/ug/checkin_credits/status`
 - 领取：`POST /trae/api/v2/ug/checkin_credits/claim`（注意：POST 空 JSON 体 `{}`，带别的字段会被限频 code=9074）
+- 每日发放额度以权益包接口为准：`GET /trae/api/v2/pay/user_current_entitlement_list`
+  每天生成一个 `每日签到` 包（`entitlement_id: checkin_<日期>_<uid>`），其
+  `entitlement_base_info.quota.credits_limit` 即当日发放额——**2026-09-03 及以前 200，
+  2026-09-04 起 150**（同日该包 `usage.credits_amount` 是消耗量，不是发放量）
+- 领取响应**不回带**本次发放额度，日志额度取状态接口 `credits`（= 当日签到积分，实测 150）。
+  状态接口的 `extra_credits` 是**会员/升级加成展示值**（Free 账号文案"升级后 +{extra} credits daily"），
+  **不是**本次发放额，**不可与 `credits` 相加**。两处都拿不到时只记"签到成功"不写数字，**禁止用常量兜底**
 - 请求头：`Authorization: Cloud-IDE-JWT <token>`、`x-device-id: <aha设备ID>`
   （aha 设备 ID 即 `storage.json` 里 `iCubeAuthInfo://icube-dc:<ID>` 键名中的数字，**不是** machineid）
 - 凭据位置：`%APPDATA%\TRAE SOLO CN\User\globalStorage\storage.json` 中的
@@ -92,6 +102,11 @@ module.exports = {
   快照 token 剩 3 天内主动续期，401 兜底续期，续期结果重新密封写回
 - 已知限制：客户端轮换 icube-dc 设备密钥对后，旧快照续期签名会失效，
   msg 会提示重新导入（在 TraeWork 登录该账号后 `--save traework <名称>`）
+- 当前积分：`GET /trae/api/v2/pay/ide_user_ent_usage`，取
+  `usage_summary.total_amount - consumed_amount`，单位 credits。实测该口径等价于各权益包
+  `credits_limit` 剩余之和（Σ`credits_limit` === `total_amount`，Σ`usage.credits_amount`
+  === `consumed_amount`）。**注意**：POST 体里带 `req_source` 会 400，只读查询用 GET
+  （或 POST 空 JSON 体 `{}`，两者响应一致）
 
 ### Qoder CN（阿里）
 
@@ -101,6 +116,8 @@ module.exports = {
 - 活动窗口为**北京时间 10:00 → 次日 09:59**（每日重置点 10:00），
   10:10 的计划任务在新活动开放后 10 分钟执行，每天直接领当天新活动
 - 查状态：`GET /sash/api/v1/me/campaigns`
+- 领取额度只认活动接口回带的 `campaigns[].benefit.amount`（`kind: CREDITS`，实测领取后仍回带）；
+  领取响应体本身不含额度，拿不到时只记"签到成功"不写数字，**禁止用常量兜底**
 - 领取：`POST /sash/api/v1/me/campaigns/<campaignId>/claim`
   （**POST 无 body、无 Content-Type**，领取逻辑在远端 iframe
   `https://openapi.qoder.com.cn/growth-page/activity-iframe` 的 JS 里，
@@ -119,6 +136,26 @@ module.exports = {
 - **多账号快照**（`data/accounts/qoder/`）：快照 = 明文元数据 + DPAPI 密封的 auth 全量
   （uid 取 `auth.user.id`）。快照 token 剩 7 天内主动续期，401 兜底续期；
   客户端登录其他账号后 `--save qoder <名称>` 导入即可
+- 当前积分：`GET /sash/api/v2/me/usage`，取
+  `qoderUsage.userQuota.remaining + qoderUsage.addOnQuota.remaining`，单位 credits。
+  **注意**：`/sash/api/v1/ai-conversations/credits-summary` 的 `totalCredits` 是**已用量**，
+  不是余额，勿混用
+
+## 当前积分统计
+
+Web 管理台顶部「当前积分」面板按**渠道合计 + 账号明细**展示各渠道**当前可用积分余额**，
+数据源为 `GET /api/credits`（只读查询，绝不触发领取；全串行执行，单账号失败只标红该行、
+不影响其他账号与其他渠道）。三家口径统一为「当前可用余额」，单位均为 credits：
+
+| 渠道 | 查询接口 | 口径 |
+|------|---------|------|
+| WorkBuddy | `POST /billing/meter/get-user-resource-summary` | Σ `data.Packages[].CycleRemainCapacity` |
+| TraeWork | `GET /trae/api/v2/pay/ide_user_ent_usage` | `usage_summary.total_amount - consumed_amount` |
+| Qoder CN | `GET /sash/api/v2/me/usage` | `userQuota.remaining + addOnQuota.remaining` |
+
+面板顶部的「全部渠道合计」只是数量参考——**三家 credits 互不通用，不可换算或合并消费**。
+积分查询**不做自动续期**：token 失效时该行显示「token 已失效，下次签到时自动续期」，
+由每日签到流程负责续期落盘。
 
 ## 使用
 
@@ -144,9 +181,13 @@ Web 管理台（本地回环，无鉴权，按需启动）：
 node server.js            # http://127.0.0.1:8787（--port N 换端口）
 ```
 
+> 改了 `server.js` 或 `web/` 下的文件后**必须重启** `server.js`（无热加载）。
+> 浏览器里看到「未知 API」基本都是端口上还跑着改动前启动的旧进程。
+
 页面为左右两栏布局：
 
-- **左侧**：各工具账号的登录态与详细登录信息（来源＝客户端登录/快照、账号 ID、
+- **左侧**：顶部「当前积分」面板（各渠道可用积分合计 + 账号明细，见上一节），
+  各工具账号的登录态与详细登录信息（来源＝客户端登录/快照、账号 ID、
   access / refresh token 剩余天数与到期时刻、快照导入时间、最近签到结果），
   以及手动操作（全部/单工具/单账号签到、导入与删除快照、上次运行结果）。
 - **右侧**：`checkin.log` 尾部日志（运行中自动刷新），随页面滚动常驻。

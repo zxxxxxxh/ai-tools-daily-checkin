@@ -18,6 +18,15 @@
   <main class="layout">
     <!-- 左侧：账号登录态 + 详细登录信息 -->
     <section class="col-left">
+      <section id="credits" class="panel">
+        <div class="panel-head">
+          <h2>当前积分</h2>
+          <span id="credits-total" class="credits-total muted">—</span>
+          <button id="btn-credits-refresh" class="small">刷新</button>
+        </div>
+        <div id="credits-body" class="muted">加载中…</div>
+      </section>
+
       <section id="last-run" class="panel">
         <h2>上次运行</h2>
         <div id="last-run-body" class="muted">暂无记录</div>

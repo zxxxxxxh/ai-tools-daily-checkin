@@ -7,6 +7,7 @@
  *
  * API：
  *   GET    /api/tools                    工具+账号总览（字段白名单，无凭据）
+ *   GET    /api/credits                  各渠道/账号当前可用积分（只读查询，绝不触发领取）
  *   GET    /api/last-run                 最近一次签到结果
  *   GET    /api/run/status               当前运行状态
  *   POST   /api/run                      {tool?, account?} 触发签到（202/409/404）
@@ -125,6 +126,9 @@ async function handleRequest(req, res) {
         accounts: runner.publicView(await t.collectAccounts()),
       }));
       return sendJson(res, 200, { tools: await Promise.all(tools) });
+    }
+    if (req.method === 'GET' && p === '/api/credits') {
+      return sendJson(res, 200, await runner.collectCredits());
     }
     if (req.method === 'GET' && p === '/api/last-run') {
       return sendJson(res, 200, store.readLastRun() || { results: [] });
