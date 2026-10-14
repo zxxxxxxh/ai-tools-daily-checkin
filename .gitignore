@@ -1,5 +1,6 @@
 # 运行时数据 / 机器相关文件（含账号凭据，勿提交）
 data/
+.workbuddy/
 checkin.log
 checkin.log.*
 node-path.txt
